@@ -1,19 +1,33 @@
+library(tidyverse)
+
 clean_df <- function(df, background_df = NULL){
   
-  df$age <- 2024 - df$birthyear_bg
+  # creating average income for all respondents
+  income_3months <- background %>% 
+    # only select last 3 months
+    filter(wave >= 202010 & wave <= 202012) %>% 
+    # for each respondent
+    group_by(nomem_encr) %>% 
+    # calculate average income
+    summarise(mean_income = mean(netinc, na.rm = TRUE))
+  
+  # add income to train data
+  data <- left_join(df, income_3months, by = "nomem_encr")
+  data <- data %>% 
+    # impute mean income if missing
+    mutate(mean_income_imp = if_else(is.na(mean_income), 
+                                     mean(mean_income, na.rm = TRUE),
+                                     mean_income))
+  
+  data$age <- 2024 - data$birthyear_bg
+  
   keepcols = c('nomem_encr', # ID variable required for predictions,
                'age', 
-               'gender_bg')  
+               'mean_income_imp')  
 
-  df <- df[ , keepcols ]
+  data <- data[ , keepcols ]
   
-  df$gender_bg<- as.factor(df$gender_bg) # 
-  
-  keepcols = c('nomem_encr', 'age', 'gender_bg')
-               
-  df <- df[ , keepcols ]
-
-  return(df)
+  return(data)
 }
 
 predict_outcomes <- function(df, background_df = NULL, model_path = "./model.rds"){

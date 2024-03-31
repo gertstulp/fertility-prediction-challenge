@@ -4,7 +4,7 @@ train_save_model <- function(cleaned_df, outcome_df) {
     
   model_df <- merge(cleaned_df, outcome_df, by = "nomem_encr")
   
-  model <- glm(new_child ~ age + gender_bg, family = "binomial", data = model_df)
+  model <- glm(new_child ~ age + mean_income_imp, family = "binomial", data = model_df)
   
   # Save the model
   saveRDS(model, "model.rds")
