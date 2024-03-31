@@ -1,0 +1,26 @@
+{
+    "id": "EA383B75",
+    "path": "~/Google Drive/GitHub/fertility-prediction-challenge/training.R",
+    "project_path": "training.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1711907673901.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "27,0",
+        "scrollLine": "4"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1711907625,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1711907625,
+    "read_only": false,
+    "read_only_alternatives": []
+}

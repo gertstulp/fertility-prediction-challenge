@@ -1,0 +1,233 @@
+library(data.table) # requires install.packages("data.table") first
+train <- data.table::fread("../PreFer_data/PreFer_train_data.csv",
+                           keepLeadingZeros = TRUE, # if FALSE adds zeroes to some dates
+                           data.table = FALSE)
+# base R's read.csv is also possible but is ssssllloooowww
+
+# loading the outcome
+outcome <- data.table::fread("../PreFer_data/PreFer_train_outcome.csv",
+                             data.table = FALSE) 
+
+train_fake <- data.table::fread("PreFer_fake_data.csv",
+                           keepLeadingZeros = TRUE, # if FALSE adds zeroes to some dates
+                           data.table = FALSE)
+# base R's read.csv is also possible but is ssssllloooowww
+
+# loading the outcome
+outcome_fake <- data.table::fread("PreFer_fake_outcome.csv",
+                             data.table = FALSE) 
+
+train_save_model(clean_df(train), outcome)
+predict_outcomes(train)
+predict_outcomes(train_fake)
+
+
+train_save_model(clean_df(train_fake), outcome_fake)
+predict_outcomes(train_fake)
+
+train_save_model(clean_df(train), outcome)
+predict_outcomes(train_fake2)
+
+
+
+
+
+train_fake2 <- train %>% select(nomem_encr, outcome_available, gender_bg, birthyear_bg, oplmet_2020) %>% 
+  mutate(outcome_available == 1) %>% sample_n(500)
+
+table(train$oplmet_2020, useNA = "always")
+table(train_fake$oplmet_2020, useNA = "always")
+
+table(train$gender_bg, useNA = "always")
+table(train_fake$gender_bg, useNA = "always")
+
+test1 <- clean_df(train)
+test2 <- clean_df(train_fake)
+
+colnames(test1)
+colnames(test2)
+
+
+train_save_model(clean_df(train), outcome)
+predict_outcomes(train)
+
+train_save_model(clean_df(train_fake), outcome_fake)
+predict_outcomes(train_fake)
+
+train_save_model(clean_df(train), outcome)
+predict_outcomes(train_fake2)
+
+
+
+library(dplyr)
+library(tidyr)
+library(glmnet)
+
+### SUBMISSION.R ####
+
+clean_df <- function(df, background_df = NULL){
+  
+  # glmnet requires that outcome is available for all cases
+  df <- df %>% filter(outcome_available == 1)
+  
+  ## Selecting variables
+  keepcols = c('nomem_encr', # ID variable required for predictions,
+               'birthyear_bg', # birthyear of respondents
+               'gender_bg', # gender of respondents, factor
+               'oplmet_2020') # highest educational level in 2020
+  
+  ## Keeping data with variables selected
+  df <- df %>% select(all_of(keepcols))
+  
+  ## function for getting mode
+  mode <- function(x) {
+    x <- x[ !is.na(x) ]
+    ux <- unique(x)
+    tab <- tabulate(match(x, ux))
+    mode <- ux[tab == max(tab)]
+    ifelse(length(mode) > 1, sample(mode, 1), mode)
+  }
+  
+  # impute missing values with mode for categorical variables and mean for continuous
+  df <- df %>% 
+    mutate(
+      birthyear_bg = ifelse(is.na(birthyear_bg), 
+                            mean(birthyear_bg, na.rm = TRUE), birthyear_bg),
+      gender_bg = ifelse(is.na(gender_bg),
+                         mode(gender_bg), gender_bg),
+      oplmet_2020 = ifelse(is.na(oplmet_2020),
+                           mode(oplmet_2020), oplmet_2020)
+    ) %>% 
+    # standardise continuous variable, create factor for categorical variables
+    # needed for glmnet
+    mutate(
+      birthyear_bg = as.numeric(scale(birthyear_bg)), # z-scores, as.numeric to remove attributes
+      gender_bg = factor(gender_bg),
+      oplmet_2020 = factor(oplmet_2020)
+    )
+  
+  # turn factors into dummy variables, required for glmnet
+  df <- model.matrix(~ ., df)
+  
+  return(df)
+  
+}
+
+### FIRST TRY RUNNING GLMNET ONLY WITH clean_df ####
+
+## This script contains a bare minimum working example
+set.seed(1) # not useful here because logistic regression deterministic
+
+clean <- clean_df(train)
+
+# Combine cleaned_df and outcome_df to match on ID
+model_df <- merge(clean, outcome, by = "nomem_encr")
+
+# glmnet requires matrix, merge turned it into data.frame
+model_df <- as.matrix(model_df)
+
+# features without outcome and identifier
+X <- model_df[ , !(colnames(model_df) %in% c("nomem_encr", "new_child"))]
+# outcome only
+y <- model_df[ , colnames(model_df) == "new_child"]
+
+# LASSO regression
+# cross-validation, to retrieve ideal lambda
+# hyperparameter tuning
+set.seed(1)
+CV <- cv.glmnet(x = X, 
+                y = y, 
+                family = "binomial",
+                nfolds = 10, standardize = FALSE)
+optimal_lambda <- CV$lambda.min
+
+# Run model with optimal lambda
+model <- glmnet(x = X, 
+                y = y, 
+                family = "binomial", 
+                lambda = optimal_lambda, standardize = FALSE )
+
+predictions <- predict(model, X, type = "class")
+any(predictions > 0) # why is everything zero!?
+
+# can't get this to work
+# mod_log <- glm.fit(y = y, x = X, family = "binomial")
+
+### Does glm results in non-zero? ###
+model_df_glm <- merge(clean, outcome, by = "nomem_encr")
+mod_log <- glm(new_child ~ ., family = "binomial", data = model_df_glm[ , colnames(model_df_glm) != "nomem_encr"])
+predict_glm <- predict(mod_log, model_df_glm[ , colnames(model_df_glm) != "nomem_encr"])
+# HAS WARNING MESSAGE, have not looked into this yet. Problem with variance? 
+any(predict_glm > 0) # why is everything zero!?
+
+### NOW THROUGH OUR SUBMISSIONG PROCESS ####
+
+train_save_model <- function(cleaned_df, outcome_df) {
+  
+  
+  # Combine cleaned_df and outcome_df to match on ID
+  model_df <- merge(cleaned_df, outcome_df, by = "nomem_encr")
+  
+  # glmnet requires matrix, merge turned it into data.frame
+  model_df <- as.matrix(model_df)
+  
+  # features without outcome and identifier
+  X <- model_df[ , !(colnames(model_df) %in% c("nomem_encr", "new_child"))]
+  # outcome only
+  y <- model_df[ , colnames(model_df) == "new_child"]
+  
+  # LASSO regression
+  # cross-validation, to retrieve ideal lambda
+  # hyperparameter tuning
+  set.seed(1)
+  CV <- cv.glmnet(x = X, 
+                  y = y, 
+                  family = "binomial",
+                  nfolds = 10, standardize = FALSE)
+  optimal_lambda_test <- CV$lambda.min
+  
+  # Run model with optimal lambda
+  model <- glmnet(x = X, 
+                  y = y, 
+                  family = "binomial", 
+                  lambda = optimal_lambda_test, standardize = FALSE )
+  
+  # Save the model
+  saveRDS(model, "model.rds")
+  
+}
+train_save_model(clean, outcome)
+
+predict_outcomes <- function(df, background_df = NULL, model_path = "./model.rds"){
+  
+  if( !("nomem_encr" %in% colnames(df)) ) {
+    warning("The identifier variable 'nomem_encr' should be in the dataset")
+  }
+  
+  # Load the model
+  model <- readRDS(model_path)
+  
+  # Preprocess the fake / holdout data
+  df <- clean_df(df, background_df)
+  
+  # Exclude id
+  X_pred <- df[ , !(colnames(df) %in% c("nomem_encr"))]
+  
+  
+  # Generate predictions from model
+  predictions <- predict(model, 
+                         X_pred, 
+                         type = "class") 
+
+  # Output file should be data.frame with two columns, nomem_encr and predictions
+  df_predict <- data.frame("nomem_encr" = df[ , colnames(df) == "nomem_encr"], 
+                           "prediction" = predictions)
+  # Force columnnames (overrides names that may be given by `predict`)
+  names(df_predict) <- c("nomem_encr", "prediction") 
+  
+  # Return only dataset with predictions and identifier
+  return( df_predict )
+  
+}
+predictions_workflow <- predict_outcomes(train)
+any(predictions_workflow$prediction > 0) # why is everything zero!?

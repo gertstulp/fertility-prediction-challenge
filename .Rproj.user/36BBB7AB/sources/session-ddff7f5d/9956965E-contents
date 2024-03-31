@@ -1,0 +1,73 @@
+clean_df <- function(df, background_df = NULL){
+  # glmnet requires that outcome is available for all cases
+  df <- df %>% filter(outcome_available == 1)
+  ## Selecting variables
+  keepcols = c('nomem_encr', # ID variable required for predictions,
+               'birthyear_bg', # birthyear of respondents
+               'gender_bg', # gender of respondents, factor
+               'oplmet_2020'#,# highest educational level in 2020
+  )
+  ## Keeping data with variables selected
+  df <- df %>% select(all_of(keepcols))
+  ## function for getting mode
+  mode <- function(x) {
+    x <- x[ !is.na(x) ]
+    ux <- unique(x)
+    tab <- tabulate(match(x, ux))
+    mode <- ux[tab == max(tab)]
+    ifelse(length(mode) > 1, sample(mode, 1), mode)
+  }
+  # impute missing values with mode for categorical variables and mean for continuous
+  df <- df %>%
+    mutate(
+      birthyear_bg = ifelse(is.na(birthyear_bg),
+                            mean(birthyear_bg, na.rm = TRUE), birthyear_bg),
+      gender_bg = ifelse(is.na(gender_bg),
+                         mode(gender_bg), gender_bg),
+      oplmet_2020 = ifelse(is.na(oplmet_2020),
+                           mode(oplmet_2020), oplmet_2020)
+    ) %>%
+    # standardise continuous variable, create factor for categorical variables
+    # needed for glmnet
+    mutate(
+      birthyear_bg = as.numeric(scale(birthyear_bg)), # z-scores, as.numeric to remove attributes
+      gender_bg = factor(gender_bg),
+      oplmet_2020 = factor(oplmet_2020)
+    )
+  # turn factors into dummy variables, required for glmnet
+  df <- model.matrix(~ ., df)
+  return(df)
+}
+### FIRST TRY RUNNING GLMNET ONLY WITH clean_df ####
+clean <- clean_df(train)
+# Combine cleaned_df and outcome_df to match on ID
+model_df <- merge(clean, outcome, by = "nomem_encr")
+# glmnet requires matrix, merge turned it into data.frame
+model_df <- as.matrix(model_df)
+# features without outcome and identifier
+X <- model_df[ , !(colnames(model_df) %in% c("nomem_encr", "new_child"))]
+# outcome only
+y <- model_df[ , colnames(model_df) == "new_child"]
+# LASSO regression
+# cross-validation, to retrieve ideal lambda
+# hyperparameter tuning
+set.seed(1)
+CV <- cv.glmnet(x = X,
+                y = y,
+                family = "binomial",
+                nfolds = 10, standardize = FALSE)
+optimal_lambda <- CV$lambda.min
+# Run model with optimal lambda
+model <- glmnet(x = X,
+                y = y,
+                family = "binomial",
+                lambda = optimal_lambda, standardize = FALSE )
+predictions <- predict(model, X, type = "class")
+any(predictions > 0) # why is everything zero!?
+#### TEST ON FAKE DATA
+train_fake$outcome_available <- 1
+fake_clean <- clean_df(train_fake)
+# features without outcome and identifier
+X_fake <- fake_clean[ , !(colnames(fake_clean) %in% c("nomem_encr"))]
+# outcome only
+predictions <- predict(model, X_fake, type = "class")
