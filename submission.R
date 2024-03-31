@@ -2,43 +2,29 @@ library(tidyverse)
 
 clean_df <- function(df, background_df = NULL){
   
-  # creating average income for all respondents
-  income_3months <- background %>% 
-    # only select last 3 months
-    filter(wave >= 202010 & wave <= 202012) %>% 
-    # for each respondent
-    group_by(nomem_encr) %>% 
-    # calculate average income
-    summarise(mean_income = mean(netinc, na.rm = TRUE))
-  
-  # add income to train data
-  data <- left_join(df, income_3months, by = "nomem_encr")
-  data <- data %>% 
-    # impute mean income if missing
-    mutate(mean_income_imp = if_else(is.na(mean_income), 
-                                     mean(mean_income, na.rm = TRUE),
-                                     mean_income))
-  
-  data$age <- 2024 - data$birthyear_bg
-  
-  keepcols = c('nomem_encr', # ID variable required for predictions,
-               'age', 
-               'mean_income_imp')  
+  df <- df %>% 
+    mutate(
+      age = 2024 - birthyear_bg,
+      gender_bg = case_when(
+        is.na(gender_bg) ~ 0, # imputation!
+        gender_bg == 1 ~ 0,
+        gender_bg == 2 ~ 1,
+      )
+    ) %>% 
+    select(nomem_encr, age, gender_bg)
 
-  data <- data[ , keepcols ]
-  
-  return(data)
+  return(df)
 }
 
 predict_outcomes <- function(df, background_df = NULL, model_path = "./model.rds"){
-
+  
   if( !("nomem_encr" %in% colnames(df)) ) {
     warning("The identifier variable 'nomem_encr' should be in the dataset")
   }
-
+  
   model <- readRDS(model_path)
   df <- clean_df(df, background_df)
-
+  
   vars_without_id <- colnames(df)[colnames(df) != "nomem_encr"]
   
   predictions <- predict(model, 
