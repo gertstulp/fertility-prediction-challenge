@@ -5,15 +5,14 @@ train_save_model <- function(cleaned_df, outcome_df) {
 
   model_df <- merge(cleaned_df, outcome_df, by = "nomem_encr")
 
-  # creating average income for all respondents
-  respondents_1974 <- supplement %>% # object in environment called supplement
-    filter(birthyear_bg == 1974) 
-  
-  # add respondents from 1974
-  data <- bind_rows(model_df, respondents_1974)
-    
-  model <- glm(new_child ~ age + gender_bg, family = "binomial", data = data)
+  model_df$new_child <- factor(clean$new_child, levels = c("no", "yes"))
+
+  caretLogitModel <- train(clean[, 2:3],
+                           clean[, 4],
+                           method = 'glm',
+                           trControl = objControl,
+                           metric = "ROC")
   
   # Save the model
-  saveRDS(model, "model.rds")
+  saveRDS(caretLogitModel, "model.rds")
 }
