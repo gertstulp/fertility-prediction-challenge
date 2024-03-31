@@ -28,7 +28,7 @@ To participate in the challenge you need to submit a method (i.e. code for data 
 
 6. ***Submit your method***: Submit your method as explained [here](https://github.com/eyra/fertility-prediction-challenge/tree/master#submit-your-method).
   
-[Here](https://preferdatachallenge/posts) are a bunch of videos and guides, notebooks, and blogs available that guide you through this process. 
+[Here](https://preferdatachallenge.nl/posts) are a bunch of videos and guides, notebooks, and blogs available that guide you through this process. 
 
 ### (Adding) libraries / packages
 For **Python** users: please see the ```environment.yml``` file to see which libraries are installed per default. You can add or remove libraries from this ```environment.yml``` file as you desire. It is recommended to state particular versions (i.e., `pandas=1.5` rather than `pandas>=1.5`). You have to call upon those libraries in the `submission.py` file.
