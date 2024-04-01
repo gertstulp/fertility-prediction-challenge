@@ -14,7 +14,7 @@
 # run.R can be used to test your submission.
 
 # List your packages here. Don't forget to update packages.R!
-library(dplyr) # as an example, not used here
+library(tidyverse)
 
 clean_df <- function(df, background_df = NULL){
   # Preprocess the input dataframe to feed the model.
@@ -29,8 +29,12 @@ clean_df <- function(df, background_df = NULL){
 
   ## This script contains a bare minimum working example
   # Create new age variable
-  df$age <- 2024 - df$birthyear_bg
-
+  # testing tidyverse
+  df <- df %>% 
+    mutate(age = 2024 - df$birthyear_bg)
+  # just some bogus tidyverse thing
+  test <- str_replace("tidyverse did not work", "did not work", "works")
+  
   # Selecting variables for modelling
 
   keepcols = c('nomem_encr', # ID variable required for predictions,
