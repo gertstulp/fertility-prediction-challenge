@@ -5,36 +5,18 @@ library(glmnet)
 clean_df <- function(df, background_df = NULL){
   
   # glmnet requires that outcome is available for all cases
-  df <- df %>% filter(outcome_available == 1)
+  df <- df |> filter(outcome_available == 1)
   
-  ## Selecting variables
+  ## Selecting variables, we don't need outcome_available!
   keepcols = c('nomem_encr', # ID variable required for predictions,
                'birthyear_bg', # birthyear of respondents
                'gender_bg', # gender of respondents, factor
                'oplmet_2020') # highest educational level in 2020
   
   ## Keeping data with variables selected
-  df <- df %>% select(all_of(keepcols))
+  df <- df |> select(all_of(keepcols))
   
-  ## function for getting mode
-  mode <- function(x) {
-    x <- x[ !is.na(x) ]
-    ux <- unique(x)
-    tab <- tabulate(match(x, ux))
-    mode <- ux[tab == max(tab)]
-    ifelse(length(mode) > 1, sample(mode, 1), mode)
-  }
-  
-  # impute missing values with mode for categorical variables and mean for continuous
-  df <- df %>% 
-    mutate(
-      birthyear_bg = ifelse(is.na(birthyear_bg), 
-                            mean(birthyear_bg, na.rm = TRUE), birthyear_bg),
-      gender_bg = ifelse(is.na(gender_bg),
-                         mode(gender_bg), gender_bg),
-      oplmet_2020 = ifelse(is.na(oplmet_2020),
-                           mode(oplmet_2020), oplmet_2020)
-    ) %>% 
+  df <- df |>
     # standardise continuous variable, create factor for categorical variables
     # needed for glmnet
     mutate(
@@ -47,7 +29,6 @@ clean_df <- function(df, background_df = NULL){
   df <- model.matrix(~ ., df)
   
   return(df)
-  
 }
 
 predict_outcomes <- function(df, background_df = NULL, model_path = "./model.rds"){
@@ -60,11 +41,10 @@ predict_outcomes <- function(df, background_df = NULL, model_path = "./model.rds
   model <- readRDS(model_path)
   
   # Preprocess the fake / holdout data
-  df <- clean_df(df, background_df)
+  df <- clean_df(df) # is matrix
   
-  # Exclude id
+  # Exclude id because not used in model
   X_pred <- df[ , !(colnames(df) %in% c("nomem_encr"))]
-  
   
   # Generate predictions from model
   predictions <- predict(model, 
