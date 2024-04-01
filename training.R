@@ -1,27 +1,35 @@
-# This is an example script to train your model given the (cleaned) input dataset.
-# 
-# This script will not be run on the holdout data, 
-# but the resulting model model.joblib will be applied to the holdout data.
-# 
-# It is important to document your training steps here, including seed, 
-# number of folds, model, et cetera
-
 train_save_model <- function(cleaned_df, outcome_df) {
-  # Trains a model using the cleaned dataframe and saves the model to a file.
-
-  # Parameters:
-  # cleaned_df (dataframe): The cleaned data from clean_df function to be used for training the model.
-  # outcome_df (dataframe): The data with the outcome variable (e.g., from PreFer_train_outcome.csv or PreFer_fake_outcome.csv).
-
+  
   ## This script contains a bare minimum working example
   set.seed(1) # not useful here because logistic regression deterministic
   
-  # Combine cleaned_df and outcome_df
+  # Combine cleaned_df and outcome_df to match on ID
   model_df <- merge(cleaned_df, outcome_df, by = "nomem_encr")
   
-  # Logistic regression model
-  model <- glm(new_child ~ age, family = "binomial", data = model_df)
+  # glmnet requires matrix, merge turned it into data.frame
+  model_df <- as.matrix(model_df)
+  
+  # features without outcome and identifier
+  X <- model_df[ , !(colnames(model_df) %in% c("nomem_encr", "new_child"))]
+  # outcome only
+  y <- model_df[ , colnames(model_df) == "new_child"]
+  
+  # LASSO regression
+  # cross-validation, to retrieve ideal lambda
+  # hyperparameter tuning
+  CV <- cv.glmnet(x = X, 
+                  y = y, 
+                  family = "binomial",
+                  nfolds = 10, standardize = FALSE)
+  optimal_lambda <- CV$lambda.min
+  
+  # Run model with optimal lambda
+  model <- glmnet(x = X, 
+                  y = y, 
+                  family = "binomial", 
+                  lambda = optimal_lambda, standardize = FALSE )
   
   # Save the model
   saveRDS(model, "model.rds")
+  
 }
